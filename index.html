@@ -268,6 +268,23 @@ h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
 .cf-sub{display:block;width:100%;font-size:12px;font-weight:500;color:var(--muted)}
 .cf-pg{font-size:12px;color:var(--muted);white-space:nowrap}
 .cf-h{font-size:12px;font-weight:700;color:var(--accent);margin-top:4px}
+.ct{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ct-hd,.ct-r{display:grid;align-items:center;gap:4px;padding:7px 10px}
+.ct-fin .ct-hd,.ct-fin .ct-r{grid-template-columns:1fr 46px 46px}
+.ct-ar .ct-hd,.ct-ar .ct-r{grid-template-columns:1fr 42px 42px 46px}
+.ct-hd{background:var(--soft);font-size:11px;font-weight:700;color:var(--muted)}
+.ct-hd span:not(:first-child),.ct-r>[role=cell]:not(:first-child){text-align:center}
+.ct-r{border-top:1px solid var(--line)}
+.ct-r.done{background:color-mix(in srgb,var(--surface) 70%,var(--bg))}
+.ct-r.diff{background:var(--warn-soft)}
+.ct-c{min-width:0}
+.ct-n{border:0;background:none;padding:0;text-align:left;font-size:14px;color:var(--ink);word-break:keep-all}
+.ct-m{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11px;margin-top:3px}
+.regbtn.sm{padding:1px 6px;font-size:11px}
+.ck{width:30px;height:30px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);font-size:15px;font-weight:700;color:var(--surface);padding:0}
+.ck[aria-pressed="true"]{border-color:var(--ok);background:var(--ok)}
+.ck.diff[aria-pressed="true"]{border-color:var(--warn);background:var(--warn)}
+.ck.none[aria-pressed="true"]{border-color:var(--muted);background:var(--muted)}
 .ci{border:1px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:5px}
 .ci.done{background:color-mix(in srgb,var(--surface) 70%,var(--bg))}
 .ci-h{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14px}
@@ -1313,7 +1330,9 @@ function confCommit(y,msg){confWrite();syncLocalChanged('conf_'+(y||cur));render
 const coKey=s=>String(s||'').replace(/\(주\)|㈜|주식회사|\(유\)|유한회사|[\s()·.,\-]/g,'').toLowerCase();
 const regFmt=r=>{const d=String(r||'').replace(/\D/g,'');return d.length===13?`${d.slice(0,5)}-${d.slice(5,9)}-${d.slice(9)}`:d};
 const regDigits=r=>String(r||'').replace(/\D/g,'');
-const KIND={fin:'금융거래',ar:'채권채무'};
+const KIND={fin:'금융기관',ar:'채권채무'};
+/* 채권채무 회신 결과: match 일치 · diff 차이 · '' 미회신 (예전 기록의 '회신'은 일치로 봐요) */
+const arRes=it=>it.res||(it.rep?'match':'');
 let confFlt='all', confOpen=new Set();
 try{confFlt=localStorage.getItem('audit-conf-flt')||'all'}catch(e){}
 
@@ -1367,8 +1386,8 @@ function importConfRows(rows){
     C.items=C.items.filter(it=>coKey(it.coName)!==k);
     groups[k].forEach(r=>{
       const it={id:uid(),coId:comp?comp.id:'',coName,kind:r.kind,name:r.name,branch:r.branch,addr:r.addr,person:r.person,phone:r.phone,zip:r.zip,no:r.no,cls:r.cls,online:r.online,
-        reg:'',sent:'',dlv:false,dlvAt:'',rep:false,repAt:'',note:'',trk:null,rc:''};
-      const o=old[ik(it)]; if(o)['id','reg','sent','dlv','dlvAt','rep','repAt','note','trk','rc'].forEach(f=>{it[f]=o[f]});
+        reg:'',sent:'',dlv:false,dlvAt:'',rep:false,repAt:'',res:'',note:'',trk:null,rc:''};
+      const o=old[ik(it)]; if(o)['id','reg','sent','dlv','dlvAt','rep','repAt','res','note','trk','rc'].forEach(f=>{if(o[f]!==undefined)it[f]=o[f]});
       C.items.push(it); n++;
     });
   });
@@ -1377,7 +1396,7 @@ function importConfRows(rows){
 function confTemplate(){
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet([['회사명','조회서','조회처명','지점명','주소','조회부서 및 담당자','담당전화번호','우편번호'],
-    ['AA','금융거래','신한은행','역삼지점','온라인조회','','',''],['AA','금융거래','교보생명보험','','서울시 종로구 종로 1','재무팀 홍길동','02-000-0000','03154'],['BB','채권채무','서울가스','','서울시 마포구 토정로 51-1','정순식','010-0000-0000','04083']]);
+    ['AA','금융기관','신한은행','역삼지점','온라인조회','','',''],['AA','금융기관','교보생명보험','','서울시 종로구 종로 1','재무팀 홍길동','02-000-0000','03154'],['BB','채권채무','서울가스','','서울시 마포구 토정로 51-1','정순식','010-0000-0000','04083']]);
   ws['!cols']=[{wch:12},{wch:9},{wch:16},{wch:10},{wch:36},{wch:18},{wch:15},{wch:9}];
   XLSX.utils.book_append_sheet(wb,ws,'조회서 발송리스트');
   return wb;
@@ -1545,18 +1564,19 @@ function renderConf(m,ownMatch){
   const ta=act.querySelector('#trkAll'); if(ta)ta.onclick=()=>trackAll(y);
   if(!C.items.length){
     const e=document.createElement('div'); e.className='empty';
-    e.innerHTML=`<h2>FY${esc(y)} 조회서 발송리스트를 올려 주세요</h2><p>회사명 · 조회서(금융거래/채권채무) · 조회처명 · 주소 · 조회부서 및 담당자 · 우편번호 칸이 있는 엑셀이면 돼요. 주소에 '온라인조회'라고 적힌 곳은 등기 관리에서 빠져요. 올린 회사만 여기에 보여요.</p><button type="button" class="btn" id="cfTpl">빈 양식 받기</button>`;
+    e.innerHTML=`<h2>FY${esc(y)} 조회서 발송리스트를 올려 주세요</h2><p>회사명 · 조회서(금융기관/채권채무) · 조회처명 · 주소 · 조회부서 및 담당자 · 우편번호 칸이 있는 엑셀이면 돼요. 주소에 '온라인조회'라고 적힌 곳은 등기 관리에서 빠져요. 올린 회사만 여기에 보여요.</p><button type="button" class="btn" id="cfTpl">빈 양식 받기</button>`;
     m.appendChild(e); e.querySelector('#cfTpl').onclick=()=>saveWb(confTemplate(),'조회서_발송리스트_양식.xlsx');
     renderReceiptFold(m,y); return;
   }
-  const n=f=>mailed.filter(f).length;
+  const vf=visible.filter(it=>it.kind==='fin'), va=visible.filter(it=>it.kind==='ar');
   const strip=document.createElement('div'); strip.className='strip';
-  [['우편 발송',mailed.length,null],['등기 입력',n(it=>it.reg),mailed.length],['배달완료',n(it=>it.dlv),n(it=>it.reg)],['회신',visible.filter(it=>it.rep).length,visible.length]].forEach(([k,v,t])=>{
+  [['금융 발송',vf.filter(it=>it.sent).length,vf.length],['금융 회신',vf.filter(it=>it.rep).length,vf.length],['채권 회신',va.filter(it=>arRes(it)).length,va.length],['채권 차이',va.filter(it=>arRes(it)==='diff').length,null]].forEach(([k,v,t])=>{
     const d=document.createElement('div'); d.className='cell'; const pct=t?Math.round(v/t*100):0;
     d.innerHTML=`<div class="k">${k}</div><div class="v">${v}${t!=null?`<small>/${t}</small>`:''}</div>${t!=null?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}`; strip.appendChild(d);
   });
   m.appendChild(strip);
-  const F={all:['전체',()=>true],noreg:['등기 입력 전',it=>!it.online&&!it.reg],nodlv:['배달 확인 전',it=>!it.online&&it.reg&&!it.dlv],norep:['회신 전',it=>!it.rep]};
+  const F={all:['전체',()=>true],nosent:['발송 전',it=>!it.sent],norep:['회신 전',it=>it.kind==='ar'?!arRes(it):!it.rep],diff:['차이',it=>it.kind==='ar'&&arRes(it)==='diff'],noreg:['등기 입력 전',it=>!it.online&&!it.reg],nodlv:['배달 확인 전',it=>!it.online&&it.reg&&!it.dlv]};
+  if(!F[confFlt])confFlt='all';
   const seg=document.createElement('div'); seg.className='seg small cf-flt';
   seg.innerHTML=Object.keys(F).map(k=>`<button type="button" data-v="${k}" aria-pressed="${confFlt===k}">${F[k][0]}</button>`).join('');
   seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{confFlt=b.dataset.v;try{localStorage.setItem('audit-conf-flt',confFlt)}catch(e){};renderMain()});
@@ -1571,14 +1591,18 @@ function renderConf(m,ownMatch){
     const card=document.createElement('div'); card.className='card';
     const fin=g.items.filter(it=>it.kind==='fin'), ar=g.items.filter(it=>it.kind==='ar');
     const tags=[fin.length?`금융 ${fin.length}${fin.some(it=>!it.online)?` (우편 ${fin.filter(it=>!it.online).length})`:''}`:'',ar.length?`채권채무 ${ar.length}`:''].filter(Boolean).join(' · ');
-    const allDone=gm.length&&gm.every(it=>it.dlv), repDone=g.items.every(it=>it.rep);
-    card.innerHTML=`<button type="button" class="c-toggle" aria-expanded="${open}"><span class="c-name">${esc(g.name)}${g.coId?'':' <span class="tag q">앱에 없는 회사</span>'}<span class="cf-sub">${esc(tags)}</span></span><span class="c-right"><span class="cf-pg">${[gm.length?`배달 ${gm.filter(it=>it.dlv).length}/${gm.length}`:'',`회신 ${g.items.filter(it=>it.rep).length}/${g.items.length}`].filter(Boolean).join(' · ')}</span>${allDone&&repDone?'<span class="tag">완료</span>':''}<span class="chev">▾</span></span></button><div class="c-body" ${open?'':'hidden'}></div>`;
+    const repDone=g.items.every(it=>it.kind==='ar'?arRes(it):it.rep), allDone=fin.every(it=>it.sent);
+    const pg=[fin.length?`금융 발송 ${fin.filter(it=>it.sent).length}/${fin.length} · 회신 ${fin.filter(it=>it.rep).length}/${fin.length}`:'',ar.length?`채권 일치 ${ar.filter(it=>arRes(it)==='match').length} · 차이 ${ar.filter(it=>arRes(it)==='diff').length} · 미회신 ${ar.filter(it=>!arRes(it)).length}`:''].filter(Boolean);
+    card.innerHTML=`<button type="button" class="c-toggle" aria-expanded="${open}"><span class="c-name">${esc(g.name)}${g.coId?'':' <span class="tag q">앱에 없는 회사</span>'}<span class="cf-sub">${esc(tags)}</span></span><span class="c-right"><span class="cf-pg">${pg.map(esc).join('<br>')}</span>${allDone&&repDone?'<span class="tag">완료</span>':''}<span class="chev">▾</span></span></button><div class="c-body" ${open?'':'hidden'}></div>`;
     const body=card.querySelector('.c-body');
     card.querySelector('.c-toggle').onclick=e=>{const o=e.currentTarget.getAttribute('aria-expanded')!=='true';e.currentTarget.setAttribute('aria-expanded',o);body.hidden=!o;if(o)confOpen.add(k);else confOpen.delete(k)};
     ['fin','ar'].forEach(kd=>{
       const list2=its.filter(it=>it.kind===kd); if(!list2.length)return;
       const h=document.createElement('div'); h.className='cf-h'; h.textContent=`${KIND[kd]}조회서`; body.appendChild(h);
-      list2.sort((a,b)=>(a.online?1:0)-(b.online?1:0)||collator.compare(a.no||'',b.no||'')||collator.compare(a.name,b.name)).forEach(it=>body.appendChild(itemRow(it,y)));
+      const tb=document.createElement('div'); tb.className='ct ct-'+kd; tb.setAttribute('role','table');
+      tb.innerHTML=kd==='fin'?'<div class="ct-hd" role="row"><span>금융기관</span><span>발송</span><span>회신</span></div>':'<div class="ct-hd" role="row"><span>거래처</span><span>일치</span><span>차이</span><span>미회신</span></div>';
+      list2.sort((a,b)=>(a.online?1:0)-(b.online?1:0)||collator.compare(a.no||'',b.no||'')||collator.compare(a.name,b.name)).forEach(it=>tb.appendChild(itemRow(it,y)));
+      body.appendChild(tb);
     });
     wrap.appendChild(card);
   });
@@ -1587,25 +1611,31 @@ function renderConf(m,ownMatch){
   renderReceiptFold(m,y);
 }
 function itemRow(it,y){
-  const r=document.createElement('div'); r.className='ci'+(it.rep?' done':'');
-  const sub=[it.online?'':[it.addr,it.zip?`(${it.zip})`:''].filter(Boolean).join(' '),it.person].filter(Boolean).join(' · ');
-  const trk=it.trk&&!it.trk.none&&it.trk.st?`<span class="trk ${it.dlv?'ok':''}">${esc(it.trk.st)}${it.trk.at?` · ${esc(it.trk.at.slice(5))}`:''}${it.trk.who?` · ${esc(it.trk.who)}`:''}</span>`:(it.dlv?`<span class="trk ok">배달완료${it.dlvAt?` · ${esc(it.dlvAt.slice(5))}`:''}</span>`:(it.trk&&it.trk.none?'<span class="trk">조회 결과 없음</span>':''));
-  r.innerHTML=`<div class="ci-h"><b>${esc(it.name)}${it.branch?` <span class="ci-br">${esc(it.branch)}</span>`:''}</b>${it.no?`<span class="tag gray">${esc(it.no)}</span>`:''}${it.online?'<span class="tag gray">온라인</span>':''}</div>
-    ${sub?`<div class="ci-s">${esc(sub)}${it.phone?` · <a href="tel:${esc(it.phone.replace(/[^\d+]/g,''))}">${esc(it.phone)}</a>`:''}</div>`:(it.phone?`<div class="ci-s"><a href="tel:${esc(it.phone.replace(/[^\d+]/g,''))}">${esc(it.phone)}</a></div>`:'')}
-    ${it.online?'':`<div class="ci-r">${it.reg?`<button type="button" class="regbtn" data-a="trk" aria-label="등기 ${esc(regFmt(it.reg))} 배달 조회">등기 ${esc(regFmt(it.reg))}</button>${trk}`:'<button type="button" class="linkbtn" data-a="edit">등기번호 넣기</button>'}${it.sent?`<span class="ci-d">발송 ${esc(it.sent.slice(5).replace('-','/'))}</span>`:''}</div>`}
-    <div class="ci-t">${it.online?'':`<button type="button" class="signbtn" data-a="dlv" aria-pressed="${!!it.dlv}">배달완료</button>`}<button type="button" class="signbtn" data-a="rep" aria-pressed="${!!it.rep}">회신</button>${it.rc?'<button type="button" class="editbtn" data-a="rc">영수증</button>':''}<button type="button" class="editbtn" data-a="edit" aria-label="${esc(it.name)} 고치기">✎</button></div>
-    ${it.note?`<div class="note">${esc(it.note)}</div>`:''}`;
+  const r=document.createElement('div'); r.setAttribute('role','row');
+  const res=it.kind==='ar'?arRes(it):'';
+  r.className='ct-r'+((it.kind==='ar'?res:it.rep)?' done':'')+(res==='diff'?' diff':'');
+  const trk=it.trk&&!it.trk.none&&it.trk.st?`<span class="trk ${it.dlv?'ok':''}">${esc(it.trk.st)}${it.trk.at?` · ${esc(it.trk.at.slice(5))}`:''}</span>`:(it.dlv?`<span class="trk ok">배달완료${it.dlvAt?` · ${esc(it.dlvAt.slice(5))}`:''}</span>`:'');
+  const meta=[it.sent?`<span class="ci-d">발송 ${esc(it.sent.slice(5).replace('-','/'))}</span>`:'',it.online?'':(it.reg?`<button type="button" class="regbtn sm" data-a="trk" aria-label="등기 ${esc(regFmt(it.reg))} 배달 조회">등기 ${esc(regFmt(it.reg))}</button>${trk}`:'')].filter(Boolean).join(' ');
+  const nm=`<button type="button" class="ct-n" data-a="edit" aria-label="${esc(it.name)} 자세히"><b>${esc(it.name)}${it.branch?` <span class="ci-br">${esc(it.branch)}</span>`:''}</b>${it.online?' <span class="tag gray">온라인</span>':''}${it.note?' <span class="tag gray">메모</span>':''}</button>${meta?`<div class="ct-m">${meta}</div>`:''}`;
+  const ck=(a,on,lbl)=>`<span role="cell"><button type="button" class="ck ${a}" data-a="${a}" aria-pressed="${!!on}" aria-label="${esc(it.name)} ${lbl}">${on?'✓':''}</button></span>`;
+  r.innerHTML=`<div class="ct-c" role="cell">${nm}</div>`+(it.kind==='fin'
+    ?ck('sent',it.sent,'발송')+ck('rep',it.rep,'회신')
+    :ck('match',res==='match','일치')+ck('diff',res==='diff','차이')+ck('none',!res,'미회신'));
   r.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{
     const a=b.dataset.a;
-    if(a==='dlv'){it.dlv=!it.dlv;it.dlvAt=it.dlv?(it.dlvAt||todayKey):'';confCommit(y)}
+    if(a==='sent'){it.sent=it.sent?'':todayKey;confCommit(y)}
     else if(a==='rep'){it.rep=!it.rep;it.repAt=it.rep?todayKey:'';confCommit(y)}
+    else if(a==='match'||a==='diff'||a==='none'){
+      const v=a==='none'?'':(arRes(it)===a?'':a);   // 같은 칸을 다시 누르면 미회신으로 돌아가요
+      it.res=v; it.rep=!!v; it.repAt=v?(it.repAt||todayKey):''; confCommit(y);
+      if(v==='diff'&&!it.note)editItem(it,y,true);
+    }
     else if(a==='edit')editItem(it,y);
-    else if(a==='rc'){const rc=confY(y).receipts.find(x=>x.id===it.rc);if(rc)receiptPage(y,rc)}
     else if(a==='trk'){
       if(!NATIVE){openTrace(it.reg);return}
       b.disabled=true; b.textContent='조회 중…';
-      const res=await trackItem(it); confCommit(y,res.ok?`${regFmt(it.reg)} · ${res.t.st||'조회됨'}`:'');
-      if(!res.ok)traceFail(it,res.err);
+      const res2=await trackItem(it); confCommit(y,res2.ok?`${regFmt(it.reg)} · ${res2.t.st||'조회됨'}`:'');
+      if(!res2.ok)traceFail(it,res2.err);
     }
   });
   return r;
@@ -1617,11 +1647,14 @@ function traceFail(it,err){
     sh.querySelector('#tfNo').onclick=closeSheet; sh.querySelector('#tfGo').onclick=()=>{closeSheet();openTrace(it.reg)};
   });
 }
-function editItem(it,y){
+function editItem(it,y,diffAsk){
   openSheet(sh=>{
     sh.innerHTML=`<div><h4>${esc(it.name)}${it.branch?' '+esc(it.branch):''}</h4><div class="sub">${esc(it.coName)} · ${KIND[it.kind]}조회서${it.zip?` · 우편번호 ${esc(it.zip)}`:''}</div></div>
       ${it.online?'':`<div class="two"><label class="f">등기번호 (13자리)<input id="eiReg" inputmode="numeric" value="${esc(regFmt(it.reg))}" placeholder="61001-0216-8719"></label><label class="f">발송일<input type="date" id="eiSent" value="${esc(it.sent||'')}"></label></div>`}
-      <label class="f">메모<textarea id="eiNote" placeholder="회신 독촉 전화함 등">${esc(it.note||'')}</textarea></label>
+      ${diffAsk?'<p class="fine warn">차이로 표시했어요. 차이 금액·사유를 메모에 남겨 두면 나중에 보기 좋아요.</p>':''}
+      <label class="f">메모<textarea id="eiNote" placeholder="${it.kind==='ar'?'차이 금액·사유, 회신 독촉 전화함 등':'회신 독촉 전화함 등'}">${esc(it.note||'')}</textarea></label>
+      ${it.online?'':`<label class="opt"><span>배달완료</span><button type="button" class="signbtn" id="eiDlv" aria-pressed="${!!it.dlv}">배달완료</button></label>`}
+      ${it.rc?'<button type="button" class="btn" id="eiRc">등기 영수증 보기</button>':''}
       <label class="opt"><span>${it.online?'온라인 발급 (등기 관리에서 빠져요)':'우편 발송'}</span><button type="button" class="btn sm" id="eiOn">${it.online?'우편으로 바꾸기':'온라인으로 바꾸기'}</button></label>
       ${it.reg&&!it.online?'<button type="button" class="btn" id="eiPage">우체국 조회 페이지 열기</button>':''}
       <div class="sheet-foot"><button type="button" class="btn" id="eiNo">취소</button><button type="button" class="btn primary" id="eiOk">저장</button></div>`;
@@ -1629,6 +1662,8 @@ function editItem(it,y){
     q('#eiNo').onclick=closeSheet;
     q('#eiOn').onclick=()=>{it.online=!it.online;closeSheet();confCommit(y)};
     if(q('#eiPage'))q('#eiPage').onclick=()=>openTrace(it.reg);
+    if(q('#eiDlv'))q('#eiDlv').onclick=e=>{it.dlv=!it.dlv;it.dlvAt=it.dlv?(it.dlvAt||todayKey):'';e.currentTarget.setAttribute('aria-pressed',it.dlv);confWrite();syncLocalChanged('conf_'+(y||cur))};
+    if(q('#eiRc'))q('#eiRc').onclick=()=>{const rc=confY(y).receipts.find(x=>x.id===it.rc);closeSheet();if(rc)receiptPage(y,rc)};
     q('#eiOk').onclick=()=>{
       if(q('#eiReg')){const d=regDigits(q('#eiReg').value);if(d&&d.length!==13){q('#eiReg').setCustomValidity('13자리');q('#eiReg').reportValidity();return}
         if(d!==regDigits(it.reg)){it.reg=d;it.trk=null;if(!d){it.dlv=false;it.dlvAt=''}if(d&&!it.sent)it.sent=todayKey}

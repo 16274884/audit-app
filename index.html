@@ -1253,8 +1253,10 @@ function readSheet(ws){
     c.signoff=str(g(r,'sign')).toUpperCase()==='O';
     c.agm=dateKey(g(r,'agm'));
     c.note=str(g(r,'note'));
-    const fl=str(g(r,'fld'));
-    if(fl){const ds=[];fl.split(/[,\n]/).forEach(part=>{const m=part.trim().match(/^(\d{4}-\d{2}-\d{2})(?:\s*~\s*(\d{4}-\d{2}-\d{2}))?$/);if(!m)return;if(!m[2])ds.push(m[1]);else workdaysBetween(m[1],m[2]).forEach(k=>ds.push(k))});c.field=[...new Set(ds)].sort()}
+    // 필드: 2026-01-12 / 2026.1.12 / 날짜 칸, 여러 날은 '~'(평일만), 여러 개는 쉼표·줄바꿈
+    const fc=g(r,'fld'), fl=fc&&typeof fc.v==='number'?dateKey(fc):str(fc);
+    if(fl){const dk=t=>{const m=String(t).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?`${m[1]}-${pad(+m[2])}-${pad(+m[3])}`:''};
+      const ds=[];fl.split(/[,\n;]/).forEach(part=>{const [a,b]=part.split('~').map(dk);if(!a)return;if(!b)ds.push(a);else workdaysBetween(a,b).forEach(k=>ds.push(k))});c.field=[...new Set(ds)].sort()}
     const grp=str(g(r,'grp'));
     if(grp==='연결 작성')c.role='parent';
     else if(grp.startsWith('종속:'))c._parentName=grp.slice(3).trim();
@@ -1262,7 +1264,7 @@ function readSheet(ws){
   }
   out.forEach(c=>{if(c._parentName){const p=parentByName[c._parentName];if(p){c.role='sub';c.parent=p.id;if(p.role!=='parent')p.role='parent'}}delete c._parentName});
   // 진행 상황 열(별도)이 있으면 전체 양식, 없으면 담당자 같은 일부 정보만 있는 표
-  return {rows:out,full:C.sep>=0,has:{join:C.join>=0,co:C.co>=0,ro:C.ro>=0,agm:C.agm>=0,note:C.note>=0&&C.sep>=0}};
+  return {rows:out,full:C.sep>=0,has:{join:C.join>=0,co:C.co>=0,ro:C.ro>=0,agm:C.agm>=0,fld:C.fld>=0,note:C.note>=0&&C.sep>=0}};
 }
 const keyName=s=>String(s||'').replace(/\s/g,'').toLowerCase();
 function mergeInto(y,res){
@@ -1276,6 +1278,7 @@ function mergeInto(y,res){
     if(res.has.ro)set('reportOwner',r.reportOwner);
     if(res.has.join&&r.join)set('join',r.join);
     if(res.has.agm&&r.agm)set('agm',r.agm);
+    if(res.has.fld&&r.field.length&&r.field.join()!==(t.field||[]).join()){t.field=r.field;changed=true}
     if(changed)upd++;
   });
   return {upd,add};
@@ -1297,7 +1300,7 @@ $('fileIn').addEventListener('change',async e=>{
         }else{
           const y=m?m[1]:(cur||String(now.getFullYear()));
           const r=mergeInto(y,res);
-          got.push({y,t:`FY${y} 담당자 ${r.upd}곳 바꿈${r.add?` · 새 회사 ${r.add}곳`:''}`});
+          got.push({y,t:`FY${y} ${r.upd}곳 정보 바꿈${r.add?` · 새 회사 ${r.add}곳`:''}`});
         }
       });
     }catch(err){failed++}

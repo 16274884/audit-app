@@ -1,0 +1,6 @@
+{
+  "appId": "com.kmyang.audit",
+  "appName": "기말감사",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}

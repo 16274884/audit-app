@@ -1,0 +1,6 @@
+native/node_modules/
+native/www/
+
+# 서명 키는 저장소에 올리지 않음
+*.jks
+*.keystore

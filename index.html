@@ -30,7 +30,7 @@ body{margin:0;-webkit-tap-highlight-color:transparent}
 :root{
   --bg:#f1f2ee; --surface:#ffffff; --ink:#18221f; --muted:#66706b; --line:#d9ddd5; --soft:#e9ece5;
   --accent:#1f5f4f; --accent-ink:#ffffff; --accent-soft:#e1eee9;
-  --ok:#2f7d4f; --ok-soft:#e2f1e7; --warn:#b26b00; --warn-soft:#fbefd9; --prog:#2d5fb8; --prog-soft:#e3ebf9; --danger:#c0392b;
+  --ok:#2f7d4f; --ok-soft:#e2f1e7; --warn:#b26b00; --warn-soft:#fbefd9; --prog:#2d5fb8; --prog-soft:#e3ebf9; --danger:#c0392b; --ica:#7a52c7;
   /* 안드로이드에서는 sans-serif가 폰 설정의 글꼴(삼성 글꼴 스타일 포함)을 따라가요 */
   --f-body:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-mono:var(--f-body);
@@ -87,7 +87,7 @@ h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
 .legend{display:flex;gap:12px;font-size:11px;color:var(--muted);padding:0 4px}
 .legend span{display:inline-flex;align-items:center;gap:4px}
 .lg{display:inline-block;width:10px;height:10px;border-radius:3px;flex:none}
-.lg.field{background:var(--accent)} .lg.lobby{background:var(--warn)} .lg.agm{background:var(--danger)}
+.lg.field{background:var(--accent)} .lg.field.ica{background:var(--ica)} .lg.lobby{background:var(--warn)} .lg.agm{background:var(--danger)}
 .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .cdow{font-size:11px;text-align:center;color:var(--muted);padding:2px 0}
 .cdow.sun{color:var(--danger)} .cdow.sat{color:var(--prog)}
@@ -101,6 +101,8 @@ h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
 .cday.inrange{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
 .ev{font-size:10px;line-height:1.35;border-radius:4px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
 .ev.field{background:var(--accent);color:var(--accent-ink)}
+.ev.field.ica{background:var(--ica);color:#fff}
+.tag.ica{background:var(--ica);color:#fff;border-color:var(--ica)}
 .ev.lobby{background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
 .ev.lobby.done{background:var(--ok-soft);color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
 .ev.agm{background:transparent;color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)}
@@ -390,7 +392,8 @@ try{cur=localStorage.getItem(UI_KEY)}catch(e){}
 
 const yearsSorted=()=>Object.keys(state.years).sort();
 const list=()=>state.years[cur]||[];
-function blank(name){return {id:uid(),name:name||'',join:'',confirmOwner:'',confirm:'ready',reportOwner:'',sep:'todo',con:'todo',role:'none',parent:'',agm:'',lobbyOffset:state.settings.lobbyDays,signoff:false,note:'',field:[]}}
+const ME='양경모';   // ICA(인차지) 회사는 조회서·보고서 담당을 이 이름으로 넣어요
+function blank(name){return {id:uid(),name:name||'',ica:'no',join:'',confirmOwner:'',confirm:'ready',reportOwner:'',sep:'todo',con:'todo',role:'none',parent:'',agm:'',lobbyOffset:state.settings.lobbyDays,signoff:false,note:'',field:[]}}
 function norm(c){const b=blank();return Object.assign(b,c||{})}
 
 /* dates */
@@ -752,6 +755,7 @@ function card(c,prev){
   const tags=[];
   if(c.role==='parent')tags.push(`<span class="tag">연결 작성</span>`);
   if(p)tags.push(`<span class="tag gray">↳ ${esc(p.name)} 연결</span>`);
+  if(c.ica==='yes')tags.push(`<span class="tag ica">ICA</span>`);
   if(c.join==='')tags.push(`<span class="tag q">참여 미정</span>`);
   let dateHtml='';
   if(c.agm){
@@ -918,7 +922,7 @@ function calEvents(comps){
   const ev={};
   const push=(k,e)=>{(ev[k]=ev[k]||[]).push(e)};
   comps.forEach(c=>{
-    (c.field||[]).forEach(k=>push(k,{t:'field',c}));
+    (c.field||[]).forEach(k=>push(k,{t:'field',c,ica:c.ica==='yes'}));
     if(c.agm){push(c.agm,{t:'agm',c});const l=lobbyOf(c);if(l)push(l,{t:'lobby',c})}
   });
   const rank={lobby:0,agm:1,field:2};
@@ -934,7 +938,7 @@ function renderCalendar(m,comps){
   const {y,m:mo}=calView;
   const box=document.createElement('section'); box.className='calbox';
   box.innerHTML=`<div class="cal-head"><h2 class="mono">${y}. ${pad(mo)}</h2><div class="nav"><button type="button" class="cprev" aria-label="이전 달">‹</button><button type="button" class="ctoday">오늘</button><button type="button" class="cnext" aria-label="다음 달">›</button></div></div>
-    <div class="legend"><span><i class="lg field"></i>필드</span><span><i class="lg lobby"></i>Audit Lobby</span><span><i class="lg agm"></i>주총</span></div>
+    <div class="legend"><span><i class="lg field"></i>필드</span>${comps.some(c=>c.ica==='yes')?'<span><i class="lg field ica"></i>필드(인차지)</span>':''}<span><i class="lg lobby"></i>Audit Lobby</span><span><i class="lg agm"></i>주총</span></div>
     <div class="cgrid"></div><p class="fine">날짜를 누르면 그날 일정을 보고 필드를 추가할 수 있어요. 여러 날은 시작일을 꾹 누른 채 끝나는 날까지 끌어 주세요.</p>`;
   box.querySelector('.cprev').onclick=()=>{calView.m--;if(calView.m<1){calView.m=12;calView.y--}renderMain()};
   box.querySelector('.cnext').onclick=()=>{calView.m++;if(calView.m>12){calView.m=1;calView.y++}renderMain()};
@@ -947,7 +951,7 @@ function renderCalendar(m,comps){
     const k=`${y}-${pad(mo)}-${pad(d)}`, w=(first+d-1)%7, list=ev[k]||[], h=HOLIDAYS[k];
     const b=document.createElement('button'); b.type='button'; b.className='cday'+(w===0||h?' sun':w===6?' sat':'')+(k===todayKey?' today':''); b.dataset.key=k;
     const show=list.slice(0,3);
-    b.innerHTML=`<span class="dn">${d}</span>${h?`<span class="hn">${esc(h.length>4?h.slice(0,4):h)}</span>`:''}${show.map(e=>`<span class="ev ${e.t}${e.t==='lobby'&&e.c.signoff?' done':''}">${esc(e.c.name)}</span>`).join('')}${list.length>3?`<span class="more">+${list.length-3}</span>`:''}`;
+    b.innerHTML=`<span class="dn">${d}</span>${h?`<span class="hn">${esc(h.length>4?h.slice(0,4):h)}</span>`:''}${show.map(e=>`<span class="ev ${e.t}${e.ica?' ica':''}${e.t==='lobby'&&e.c.signoff?' done':''}">${esc(e.c.name)}</span>`).join('')}${list.length>3?`<span class="more">+${list.length-3}</span>`:''}`;
     b.setAttribute('aria-label',`${mo}월 ${d}일${h?' '+h:''}${list.length?' 일정 '+list.length+'개':''}`);
     b.onclick=()=>{if(calSuppress){calSuppress=false;return}openDay(k,comps)};
     g.appendChild(b);
@@ -971,7 +975,7 @@ function renderCalendar(m,comps){
     agEv(k).forEach(e=>{
       const s=document.createElement('button'); s.type='button'; s.className='ag-it '+e.t;
       const ri=e.t==='field'?rangeAt[e.c.id+'|'+k]:null;
-      s.innerHTML=`<i class="lg ${e.t}"></i>${esc(e.c.name)} <em>${e.t==='field'?'필드'+(ri&&ri.n>1?' '+rangeTxt(ri.r)+' ('+ri.n+'일)':''):e.t==='agm'?'주주총회':'Audit Lobby · '+(e.c.signoff?'Sign-off 완료':'Sign-off 전')}</em>`;
+      s.innerHTML=`<i class="lg ${e.t}${e.ica?' ica':''}"></i>${esc(e.c.name)} <em>${e.t==='field'?(e.ica?'필드(인차지)':'필드')+(ri&&ri.n>1?' '+rangeTxt(ri.r)+' ('+ri.n+'일)':''):e.t==='agm'?'주주총회':'Audit Lobby · '+(e.c.signoff?'Sign-off 완료':'Sign-off 전')}</em>`;
       s.onclick=()=>openDay(k,comps);
       it.appendChild(s);
     });
@@ -1094,6 +1098,7 @@ function openEdit(id){
       <div><h4>${isNew?'회사 추가':esc(c.name)}</h4><div class="sub">FY${cur}</div></div>
       <div class="form">
         <label class="f">회사명<input id="eName" value="${esc(c.name)}" autocomplete="off"></label>
+        <div class="f">ICA여부<div class="seg" id="eIca"><button type="button" data-v="yes">yes</button><button type="button" data-v="no">no</button></div></div>
         <div class="f">기말 감사 참여<div class="seg" id="eJoin"><button type="button" data-v="y">참여</button><button type="button" data-v="">미정</button><button type="button" data-v="n">불참</button></div></div>
         <div class="two">
           <label class="f">조회서 담당<input id="eCO" list="ownerList" value="${esc(c.confirmOwner)}" autocomplete="off"></label>
@@ -1112,9 +1117,11 @@ function openEdit(id){
       <div class="sheet-foot"><button type="button" class="btn" id="eCancel">취소</button><button type="button" class="btn primary" id="eSave">${isNew?'추가':'저장'}</button></div>
       ${isNew?'':'<button type="button" class="btn danger" id="eDel">이 연도에서 회사 삭제</button><div class="confirm" id="eDelBox" hidden>FY'+cur+'에서 '+esc(c.name)+'을(를) 지울까요? 다른 연도 기록은 그대로예요.<button type="button" class="btn danger" id="eDelYes">삭제</button><button type="button" class="btn" id="eDelNo">취소</button></div>'}`;
     const segSet=(box,v)=>box.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
-    let join=c.join, role=c.role;
-    const jb=sh.querySelector('#eJoin'), rb=sh.querySelector('#eRole');
-    segSet(jb,join); segSet(rb,role);
+    let join=c.join, role=c.role, ica=c.ica==='yes'?'yes':'no';
+    const jb=sh.querySelector('#eJoin'), rb=sh.querySelector('#eRole'), ib=sh.querySelector('#eIca');
+    segSet(jb,join); segSet(rb,role); segSet(ib,ica);
+    ib.onclick=e=>{const b=e.target.closest('button');if(!b)return;ica=b.dataset.v;segSet(ib,ica);
+      if(ica==='yes'){sh.querySelector('#eCO').value=ME;sh.querySelector('#eRO').value=ME}};
     jb.onclick=e=>{const b=e.target.closest('button');if(!b)return;join=b.dataset.v;segSet(jb,join)};
     const showParent=()=>{sh.querySelector('#eParentWrap').hidden=role!=='sub'};
     rb.onclick=e=>{const b=e.target.closest('button');if(!b)return;role=b.dataset.v;segSet(rb,role);showParent()};
@@ -1150,7 +1157,7 @@ function openEdit(id){
       const arr=state.years[cur];
       let t=isNew?c:arr.find(x=>x.id===c.id);
       const wasParent=t.role==='parent';
-      Object.assign(t,{name,join,role,parent:role==='sub'?parent:'',confirmOwner:sh.querySelector('#eCO').value.trim(),reportOwner:sh.querySelector('#eRO').value.trim(),
+      Object.assign(t,{name,ica,join,role,parent:role==='sub'?parent:'',confirmOwner:sh.querySelector('#eCO').value.trim(),reportOwner:sh.querySelector('#eRO').value.trim(),
         agm:sh.querySelector('#eAgm').value,field:c.field,lobbyOffset:Number(sh.querySelector('#eOff').value)||0,note:sh.querySelector('#eNote').value.trim()});
       if(role==='sub'){const p=arr.find(x=>x.id===parent);if(p&&p.role!=='parent')p.role='parent'}
       if(wasParent&&role!=='parent')arr.forEach(x=>{if(x.role==='sub'&&x.parent===t.id){x.role='none';x.parent=''}});
@@ -1234,7 +1241,7 @@ function readSheet(ws){
   for(let c=range.s.c;c<=range.e.c;c++){const v=norm(cellVal(ws,hr,c));if(v&&!(v in head))head[v]=c}
   const col=(...names)=>{for(const n of names){const k=n.replace(/\s/g,'').toLowerCase();if(k in head)return head[k]}return -1};
   const C={name:col('구분','회사','회사명'),join:col('참여여부','참여'),co:col('조회서'),mail:col('메일발송'),post:col('우편발송'),reply:col('회신','회신여부'),
-    ro:col('보고서'),sep:col('별도'),con:col('연결'),lobby:col('auditlobby','lobby'),sign:col('sign-off','signoff'),agm:col('주주총회','주총'),note:col('비고'),grp:col('연결그룹'),fld:col('필드')};
+    ro:col('보고서'),sep:col('별도'),con:col('연결'),lobby:col('auditlobby','lobby'),sign:col('sign-off','signoff'),agm:col('주주총회','주총'),note:col('비고'),grp:col('연결그룹'),fld:col('필드'),ica:col('ica여부','ica','인차지')};
   if(C.note<0&&C.agm>=0)C.note=C.agm+1;
   const g=(r,k)=>C[k]>=0?cellVal(ws,r,C[k]):null;
   const out=[], parentByName={};
@@ -1243,6 +1250,8 @@ function readSheet(ws){
     const c=blank(name);
     const j=str(g(r,'join')).toUpperCase(); c.join=j==='O'?'y':j==='X'?'n':'';
     c.confirmOwner=str(g(r,'co')); c.reportOwner=str(g(r,'ro'));
+    const ic=str(g(r,'ica')).toLowerCase(); c.ica=/^(y|yes|o|예)$/.test(ic)?'yes':'no';
+    if(c.ica==='yes'){c.confirmOwner=c.confirmOwner||ME;c.reportOwner=c.reportOwner||ME}
     const D=str(g(r,'mail')),E=str(g(r,'post')),F=str(g(r,'reply'));
     c.confirm=F==='O'?'done':F.includes('미회신')?'partial':(D==='O'||E==='O')?'sent':(D==='N/A'&&(E===''||E==='N/A')&&(F===''||F==='N/A')&&D)?'na':'ready';
     const rep=v=>{v=v.toLowerCase();return v.includes('완료')?'done':v.includes('review')?'review':v.includes('작성')?'wip':'todo'};
@@ -1264,7 +1273,7 @@ function readSheet(ws){
   }
   out.forEach(c=>{if(c._parentName){const p=parentByName[c._parentName];if(p){c.role='sub';c.parent=p.id;if(p.role!=='parent')p.role='parent'}}delete c._parentName});
   // 진행 상황 열(별도)이 있으면 전체 양식, 없으면 담당자 같은 일부 정보만 있는 표
-  return {rows:out,full:C.sep>=0,has:{join:C.join>=0,co:C.co>=0,ro:C.ro>=0,agm:C.agm>=0,fld:C.fld>=0,note:C.note>=0&&C.sep>=0}};
+  return {rows:out,full:C.sep>=0,has:{join:C.join>=0,co:C.co>=0,ro:C.ro>=0,agm:C.agm>=0,fld:C.fld>=0,ica:C.ica>=0,note:C.note>=0&&C.sep>=0}};
 }
 const keyName=s=>String(s||'').replace(/\s/g,'').toLowerCase();
 function mergeInto(y,res){
@@ -1274,8 +1283,10 @@ function mergeInto(y,res){
     let t=arr.find(c=>keyName(c.name)===keyName(r.name)), changed=false;
     if(!t){t=blank(r.name);arr.push(t);add++}
     const set=(k,v)=>{if(v!==''&&v!=null&&t[k]!==v){t[k]=v;changed=true}};
+    if(res.has.ica)set('ica',r.ica);
     if(res.has.co)set('confirmOwner',r.confirmOwner);
     if(res.has.ro)set('reportOwner',r.reportOwner);
+    if(r.ica==='yes'){if(!t.confirmOwner)set('confirmOwner',ME);if(!t.reportOwner)set('reportOwner',ME)}
     if(res.has.join&&r.join)set('join',r.join);
     if(res.has.agm&&r.agm)set('agm',r.agm);
     if(res.has.fld&&r.field.length&&r.field.join()!==(t.field||[]).join()){t.field=r.field;changed=true}
@@ -1333,7 +1344,7 @@ function confCommit(y,msg){confWrite();syncLocalChanged('conf_'+(y||cur));render
 const coKey=s=>String(s||'').replace(/\(주\)|㈜|주식회사|\(유\)|유한회사|[\s()·.,\-]/g,'').toLowerCase();
 const regFmt=r=>{const d=String(r||'').replace(/\D/g,'');return d.length===13?`${d.slice(0,5)}-${d.slice(5,9)}-${d.slice(9)}`:d};
 const regDigits=r=>String(r||'').replace(/\D/g,'');
-const KIND={fin:'금융기관',ar:'채권채무'};
+const KIND={fin:'금융기관',ar:'채권채무',law:'변호사'};
 /* 채권채무 회신 결과: match 일치 · diff 차이 · '' 미회신 (예전 기록의 '회신'은 일치로 봐요) */
 const arRes=it=>it.res||(it.rep?'match':'');
 let confFlt='all', confOpen=new Set();
@@ -1369,7 +1380,7 @@ function readConfSheet(ws,sheetName){
     const g=k=>col[k]!=null?str(cellVal(ws,r,col[k])):'';
     const name=g('name'); if(!name)continue;
     if(/^\d+\.\s*\S/.test(name)&&!g('addr'))continue;   // '2.거래처 목록' 같은 제목줄
-    const kt=g('kind'); const kind=/금융/.test(kt)?'fin':/채권|채무|매출|매입/.test(kt)?'ar':isFin?'fin':'ar';
+    const kt=g('kind'); const kind=/금융/.test(kt)?'fin':/변호사|법률|법무|소송/.test(kt)?'law':/채권|채무|매출|매입/.test(kt)?'ar':isFin?'fin':'ar';
     let zip=g('zip').replace(/\D/g,''); if(zip&&zip.length<5)zip=zip.padStart(5,'0');
     const addr=g('addr');
     out.push({co:g('co')||String(sheetName||''),kind,name,branch:g('branch'),addr,person:g('person'),phone:g('phone'),zip,no:g('no'),cls:g('cls'),online:/온라인/.test(addr)||(!addr&&!zip)});
@@ -1399,7 +1410,7 @@ function importConfRows(rows){
 function confTemplate(){
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet([['회사명','조회서','조회처명','지점명','주소','조회부서 및 담당자','담당전화번호','우편번호'],
-    ['AA','금융기관','신한은행','역삼지점','온라인조회','','',''],['AA','금융기관','교보생명보험','','서울시 종로구 종로 1','재무팀 홍길동','02-000-0000','03154'],['BB','채권채무','서울가스','','서울시 마포구 토정로 51-1','정순식','010-0000-0000','04083']]);
+    ['AA','금융기관','신한은행','역삼지점','온라인조회','','',''],['AA','금융기관','교보생명보험','','서울시 종로구 종로 1','재무팀 홍길동','02-000-0000','03154'],['BB','채권채무','서울가스','','서울시 마포구 토정로 51-1','정순식','010-0000-0000','04083'],['BB','변호사','법무법인 한결','','서울시 서초구 서초대로 1','김변호사','02-000-0000','06600']]);
   ws['!cols']=[{wch:12},{wch:9},{wch:16},{wch:10},{wch:36},{wch:18},{wch:15},{wch:9}];
   XLSX.utils.book_append_sheet(wb,ws,'조회서 발송리스트');
   return wb;
@@ -1567,13 +1578,16 @@ function renderConf(m,ownMatch){
   const ta=act.querySelector('#trkAll'); if(ta)ta.onclick=()=>trackAll(y);
   if(!C.items.length){
     const e=document.createElement('div'); e.className='empty';
-    e.innerHTML=`<h2>FY${esc(y)} 조회서 발송리스트를 올려 주세요</h2><p>회사명 · 조회서(금융기관/채권채무) · 조회처명 · 주소 · 조회부서 및 담당자 · 우편번호 칸이 있는 엑셀이면 돼요. 주소에 '온라인조회'라고 적힌 곳은 등기 관리에서 빠져요. 올린 회사만 여기에 보여요.</p><button type="button" class="btn" id="cfTpl">빈 양식 받기</button>`;
+    e.innerHTML=`<h2>FY${esc(y)} 조회서 발송리스트를 올려 주세요</h2><p>회사명 · 조회서(금융기관/채권채무/변호사) · 조회처명 · 주소 · 조회부서 및 담당자 · 우편번호 칸이 있는 엑셀이면 돼요. 주소에 '온라인조회'라고 적힌 곳은 등기 관리에서 빠져요. 올린 회사만 여기에 보여요.</p><button type="button" class="btn" id="cfTpl">빈 양식 받기</button>`;
     m.appendChild(e); e.querySelector('#cfTpl').onclick=()=>saveWb(confTemplate(),'조회서_발송리스트_양식.xlsx');
     renderReceiptFold(m,y); return;
   }
   const vf=visible.filter(it=>it.kind==='fin'), va=visible.filter(it=>it.kind==='ar');
   const strip=document.createElement('div'); strip.className='strip';
-  [['금융 발송',vf.filter(it=>it.sent).length,vf.length],['금융 회신',vf.filter(it=>it.rep).length,vf.length],['채권 회신',va.filter(it=>arRes(it)).length,va.length],['채권 차이',va.filter(it=>arRes(it)==='diff').length,null]].forEach(([k,v,t])=>{
+  const vl=visible.filter(it=>it.kind==='law'), vfl=vf.concat(vl), arD=va.filter(it=>arRes(it)==='diff').length;
+  (vl.length
+    ?[['발송',vfl.filter(it=>it.sent).length,vfl.length],['금융 회신',vf.filter(it=>it.rep).length,vf.length],['변호사 회신',vl.filter(it=>it.rep).length,vl.length],[`채권 회신${arD?' · 차이 '+arD:''}`,va.filter(it=>arRes(it)).length,va.length]]
+    :[['금융 발송',vf.filter(it=>it.sent).length,vf.length],['금융 회신',vf.filter(it=>it.rep).length,vf.length],['채권 회신',va.filter(it=>arRes(it)).length,va.length],['채권 차이',arD,null]]).forEach(([k,v,t])=>{
     const d=document.createElement('div'); d.className='cell'; const pct=t?Math.round(v/t*100):0;
     d.innerHTML=`<div class="k">${k}</div><div class="v">${v}${t!=null?`<small>/${t}</small>`:''}</div>${t!=null?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}`; strip.appendChild(d);
   });
@@ -1592,18 +1606,18 @@ function renderConf(m,ownMatch){
     const its=g.items.filter(F[confFlt][1]); if(confFlt!=='all'&&!its.length)return; shown++;
     const gm=g.items.filter(it=>!it.online), k=coKey(g.name), open=confOpen.has(k)||confFlt!=='all';
     const card=document.createElement('div'); card.className='card';
-    const fin=g.items.filter(it=>it.kind==='fin'), ar=g.items.filter(it=>it.kind==='ar');
-    const tags=[fin.length?`금융 ${fin.length}${fin.some(it=>!it.online)?` (우편 ${fin.filter(it=>!it.online).length})`:''}`:'',ar.length?`채권채무 ${ar.length}`:''].filter(Boolean).join(' · ');
-    const repDone=g.items.every(it=>it.kind==='ar'?arRes(it):it.rep), allDone=fin.every(it=>it.sent);
-    const pg=[fin.length?`금융 발송 ${fin.filter(it=>it.sent).length}/${fin.length} · 회신 ${fin.filter(it=>it.rep).length}/${fin.length}`:'',ar.length?`채권 일치 ${ar.filter(it=>arRes(it)==='match').length} · 차이 ${ar.filter(it=>arRes(it)==='diff').length} · 미회신 ${ar.filter(it=>!arRes(it)).length}`:''].filter(Boolean);
+    const fin=g.items.filter(it=>it.kind==='fin'), ar=g.items.filter(it=>it.kind==='ar'), law=g.items.filter(it=>it.kind==='law');
+    const tags=[fin.length?`금융 ${fin.length}${fin.some(it=>!it.online)?` (우편 ${fin.filter(it=>!it.online).length})`:''}`:'',ar.length?`채권채무 ${ar.length}`:'',law.length?`변호사 ${law.length}`:''].filter(Boolean).join(' · ');
+    const repDone=g.items.every(it=>it.kind==='ar'?arRes(it):it.rep), allDone=fin.concat(law).every(it=>it.sent);
+    const pg=[fin.length?`금융 발송 ${fin.filter(it=>it.sent).length}/${fin.length} · 회신 ${fin.filter(it=>it.rep).length}/${fin.length}`:'',ar.length?`채권 일치 ${ar.filter(it=>arRes(it)==='match').length} · 차이 ${ar.filter(it=>arRes(it)==='diff').length} · 미회신 ${ar.filter(it=>!arRes(it)).length}`:'',law.length?`변호사 발송 ${law.filter(it=>it.sent).length}/${law.length} · 회신 ${law.filter(it=>it.rep).length}/${law.length}`:''].filter(Boolean);
     card.innerHTML=`<button type="button" class="c-toggle" aria-expanded="${open}"><span class="c-name">${esc(g.name)}${g.coId?'':' <span class="tag q">앱에 없는 회사</span>'}<span class="cf-sub">${esc(tags)}</span></span><span class="c-right"><span class="cf-pg">${pg.map(esc).join('<br>')}</span>${allDone&&repDone?'<span class="tag">완료</span>':''}<span class="chev">▾</span></span></button><div class="c-body" ${open?'':'hidden'}></div>`;
     const body=card.querySelector('.c-body');
     card.querySelector('.c-toggle').onclick=e=>{const o=e.currentTarget.getAttribute('aria-expanded')!=='true';e.currentTarget.setAttribute('aria-expanded',o);body.hidden=!o;if(o)confOpen.add(k);else confOpen.delete(k)};
-    ['fin','ar'].forEach(kd=>{
+    ['fin','ar','law'].forEach(kd=>{
       const list2=its.filter(it=>it.kind===kd); if(!list2.length)return;
       const h=document.createElement('div'); h.className='cf-h'; h.textContent=`${KIND[kd]}조회서`; body.appendChild(h);
-      const tb=document.createElement('div'); tb.className='ct ct-'+kd; tb.setAttribute('role','table');
-      tb.innerHTML=kd==='fin'?'<div class="ct-hd" role="row"><span>금융기관</span><span>발송</span><span>회신</span></div>':'<div class="ct-hd" role="row"><span>거래처</span><span>일치</span><span>차이</span><span>미회신</span></div>';
+      const tb=document.createElement('div'); tb.className='ct ct-'+(kd==='ar'?'ar':'fin'); tb.setAttribute('role','table');
+      tb.innerHTML=kd!=='ar'?`<div class="ct-hd" role="row"><span>${kd==='law'?'법무법인·변호사':'금융기관'}</span><span>발송</span><span>회신</span></div>`:'<div class="ct-hd" role="row"><span>거래처</span><span>일치</span><span>차이</span><span>미회신</span></div>';
       list2.sort((a,b)=>(a.online?1:0)-(b.online?1:0)||collator.compare(a.no||'',b.no||'')||collator.compare(a.name,b.name)).forEach(it=>tb.appendChild(itemRow(it,y)));
       body.appendChild(tb);
     });
@@ -1621,7 +1635,7 @@ function itemRow(it,y){
   const meta=[it.sent?`<span class="ci-d">발송 ${esc(it.sent.slice(5).replace('-','/'))}</span>`:'',it.online?'':(it.reg?`<button type="button" class="regbtn sm" data-a="trk" aria-label="등기 ${esc(regFmt(it.reg))} 배달 조회">등기 ${esc(regFmt(it.reg))}</button>${trk}`:'')].filter(Boolean).join(' ');
   const nm=`<button type="button" class="ct-n" data-a="edit" aria-label="${esc(it.name)} 자세히"><b>${esc(it.name)}${it.branch?` <span class="ci-br">${esc(it.branch)}</span>`:''}</b>${it.online?' <span class="tag gray">온라인</span>':''}${it.note?' <span class="tag gray">메모</span>':''}</button>${meta?`<div class="ct-m">${meta}</div>`:''}`;
   const ck=(a,on,lbl)=>`<span role="cell"><button type="button" class="ck ${a}" data-a="${a}" aria-pressed="${!!on}" aria-label="${esc(it.name)} ${lbl}">${on?'✓':''}</button></span>`;
-  r.innerHTML=`<div class="ct-c" role="cell">${nm}</div>`+(it.kind==='fin'
+  r.innerHTML=`<div class="ct-c" role="cell">${nm}</div>`+(it.kind!=='ar'
     ?ck('sent',it.sent,'발송')+ck('rep',it.rep,'회신')
     :ck('match',res==='match','일치')+ck('diff',res==='diff','차이')+ck('none',!res,'미회신'));
   r.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{
@@ -1791,7 +1805,7 @@ $('exportBtn').onclick=async()=>{
   const wb=XLSX.utils.book_new();
   yearsSorted().forEach(y=>{
     const arr=ordered(state.years[y]), names=Object.fromEntries(state.years[y].map(c=>[c.id,c.name]));
-    const aoa=[['구분','참여여부','조회서','메일발송','우편발송','회신','보고서','별도','연결','Audit lobby','Sign-off','주주총회','비고','연결그룹','필드']];
+    const aoa=[['구분','참여여부','조회서','메일발송','우편발송','회신','보고서','별도','연결','Audit lobby','Sign-off','주주총회','비고','연결그룹','필드','ICA여부']];
     arr.forEach((c,i)=>{
       const r=i+2;
       const D=c.confirm==='na'?'N/A':['sent','partial','done'].includes(c.confirm)?'O':'';
@@ -1801,7 +1815,7 @@ $('exportBtn').onclick=async()=>{
       aoa.push([c.name,c.join==='y'?'O':c.join==='n'?'X':'',c.confirmOwner,D,c.confirm==='na'?'N/A':'',F,c.reportOwner,rep(c.sep),c.role==='parent'?rep(c.con)||'진행 전':'N/A',
         c.agm?{t:'n',f:`L${r}-${Number(c.lobbyOffset)||0}`,z:'yyyy-mm-dd'}:'',c.signoff?'O':'',agm,c.note,
         c.role==='parent'?'연결 작성':c.role==='sub'&&names[c.parent]?'종속: '+names[c.parent]:'',
-        fieldRanges(c.field).map(r=>r[0]===r[1]?r[0]:r[0]+'~'+r[1]).join(', ')]);
+        fieldRanges(c.field).map(r=>r[0]===r[1]?r[0]:r[0]+'~'+r[1]).join(', '),c.ica==='yes'?'yes':'no']);
     });
     const ws=XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols']=[14,8,8,8,8,10,8,8,8,12,8,12,40,16,30].map(w=>({wch:w}));

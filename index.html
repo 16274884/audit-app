@@ -30,7 +30,7 @@ body{margin:0;-webkit-tap-highlight-color:transparent}
 :root{
   --bg:#f1f2ee; --surface:#ffffff; --ink:#18221f; --muted:#66706b; --line:#d9ddd5; --soft:#e9ece5;
   --accent:#1f5f4f; --accent-ink:#ffffff; --accent-soft:#e1eee9;
-  --ok:#2f7d4f; --ok-soft:#e2f1e7; --warn:#b26b00; --warn-soft:#fbefd9; --prog:#2d5fb8; --prog-soft:#e3ebf9; --danger:#c0392b; --ica:#7a52c7;
+  --ok:#2f7d4f; --ok-soft:#e2f1e7; --warn:#b26b00; --warn-soft:#fbefd9; --prog:#2d5fb8; --prog-soft:#e3ebf9; --danger:#c0392b; --ica:#7a52c7; --inv:#0b7f8f;
   /* 안드로이드에서는 sans-serif가 폰 설정의 글꼴(삼성 글꼴 스타일 포함)을 따라가요 */
   --f-body:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-mono:var(--f-body);
@@ -106,6 +106,14 @@ h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
 .ev.lobby{background:var(--warn-soft);color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
 .ev.lobby.done{background:var(--ok-soft);color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
 .ev.agm{background:transparent;color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)}
+.ev.inv{background:var(--inv);color:#fff} .lg.inv{background:var(--inv)}
+.inv-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;text-align:left;width:100%;color:var(--ink);min-width:0}
+.inv-card .ih{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600;font-size:15px}
+.inv-card .ih .mono{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+.inv-card .ih .mono.soon{color:var(--inv)}
+.inv-card .il{font-size:13px;color:var(--muted)}
+.inv-card .il b{color:var(--inv);font-weight:600}
+.fld-chip.inv{border-color:var(--inv)}
 .cday .more{font-size:10px;color:var(--muted);padding-left:3px}
 .agenda{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column}
 .agenda h3{margin:0 0 6px;font-size:15px}
@@ -331,7 +339,7 @@ h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
   </header>
 
   <nav class="years" id="years" aria-label="회계연도"></nav>
-  <div class="views" id="views" role="group" aria-label="보기"><button type="button" data-v="list">목록</button><button type="button" data-v="cal">달력</button><button type="button" data-v="conf">조회서</button></div>
+  <div class="views" id="views" role="group" aria-label="보기"><button type="button" data-v="list">목록</button><button type="button" data-v="cal">달력</button><button type="button" data-v="conf">조회서</button><button type="button" data-v="inv">재고실사</button></div>
 
   <div id="main"></div>
 
@@ -377,7 +385,7 @@ let cur=null, lastSnapshot=null, toastTimer=null, store=null;
 const openSet=new Set();
 let flt=null;
 let view='list';
-try{const v=localStorage.getItem('audit-ui-view');view=v==='cal'||v==='conf'?v:'list'}catch(e){}
+try{const v=localStorage.getItem('audit-ui-view');view=v==='cal'||v==='conf'||v==='inv'?v:'list'}catch(e){}
 let ownerF='', ownerScope='confirm';
 try{const o=JSON.parse(localStorage.getItem('audit-ui-owner')||'null');if(o){ownerF=o.f||'';ownerScope=o.s||'confirm'}}catch(e){}
 const saveOwner=()=>{try{localStorage.setItem('audit-ui-owner',JSON.stringify({f:ownerF,s:ownerScope}))}catch(e){}};
@@ -435,10 +443,12 @@ const hasData=s=>Object.keys(s.years||{}).some(y=>(s.years[y]||[]).length);
 /* 동기화 묶음: state(회사·진행 상황) + conf_연도(조회서 발송리스트·등기) */
 function partOf(id){
   if(id==='state')return {dump:()=>toDoc(state),load:o=>{state=fromDoc(o);lsWrite(toDoc(state))},has:()=>hasData(state)};
+  const iv=/^inv_(\d{4})$/.exec(id);
+  if(iv){const y=iv[1];return {dump:()=>invY(y),load:o=>{invs.years[y]=normInv(o);invWrite()},has:()=>invHas(y)}}
   const m=/^conf_(\d{4})$/.exec(id); if(!m)return null; const y=m[1];
   return {dump:()=>confY(y),load:o=>{confs.years[y]=normConf(o);confWrite()},has:()=>confHas(y)};
 }
-const localParts=()=>['state',...Object.keys(confs.years).map(y=>'conf_'+y)];
+const localParts=()=>['state',...Object.keys(confs.years).map(y=>'conf_'+y),...Object.keys(invs.years).map(y=>'inv_'+y)];
 function loadScript(src){return new Promise((res,rej)=>{const e=document.createElement('script');e.src=src;e.onload=res;e.onerror=rej;document.head.appendChild(e)})}
 async function syncStart(){
   const cfg=window.FIREBASE_CONFIG; if(!cfg)return;
@@ -649,6 +659,7 @@ function renderMain(){
     m.innerHTML=`<div class="empty"><h2>아직 회계연도가 없어요</h2><p>쓰던 감사 진행 엑셀을 불러오면 연도별로 바로 정리돼요. 처음부터 시작하려면 위에서 연도를 만들고 회사를 추가하세요.</p><label class="btn primary" for="fileIn">엑셀 불러오기</label></div>`;
     return;
   }
+  if(view==='inv'){renderInv(m);return}
   const yearOwners=[...new Set(list().flatMap(c=>[c.confirmOwner,c.reportOwner]).filter(Boolean))].sort((a,b)=>collator.compare(a,b));
   if(ownerF&&!yearOwners.includes(ownerF))ownerF='';
   const ownMatch=c=>!ownerF||(ownerScope!=='report'&&c.confirmOwner===ownerF)||(ownerScope!=='confirm'&&c.reportOwner===ownerF);
@@ -852,7 +863,7 @@ function setupWidgetSetting(){
     CapApp.addListener('backButton',()=>{
       if(!$('scrim').hidden){closeSheet();return}
       if(rpClose){rpClose();return}
-      if(view==='cal'||view==='conf'){view='list';try{localStorage.setItem('audit-ui-view',view)}catch(e){};render();return}
+      if(view==='cal'||view==='conf'||view==='inv'){view='list';try{localStorage.setItem('audit-ui-view',view)}catch(e){};render();return}
       if(flt){flt=null;renderMain();return}
       if(window.scrollY>200){window.scrollTo({top:0,behavior:'smooth'});return}
       CapApp.exitApp();
@@ -925,7 +936,8 @@ function calEvents(comps){
     (c.field||[]).forEach(k=>push(k,{t:'field',c,ica:c.ica==='yes'}));
     if(c.agm){push(c.agm,{t:'agm',c});const l=lobbyOf(c);if(l)push(l,{t:'lobby',c})}
   });
-  const rank={lobby:0,agm:1,field:2};
+  invY().items.forEach(it=>(it.dates||[]).forEach(k=>push(k,{t:'inv',c:it})));
+  const rank={lobby:0,agm:1,inv:2,field:3};
   Object.values(ev).forEach(a=>a.sort((x,y)=>rank[x.t]-rank[y.t]||collator.compare(x.c.name,y.c.name)));
   return ev;
 }
@@ -938,7 +950,7 @@ function renderCalendar(m,comps){
   const {y,m:mo}=calView;
   const box=document.createElement('section'); box.className='calbox';
   box.innerHTML=`<div class="cal-head"><h2 class="mono">${y}. ${pad(mo)}</h2><div class="nav"><button type="button" class="cprev" aria-label="이전 달">‹</button><button type="button" class="ctoday">오늘</button><button type="button" class="cnext" aria-label="다음 달">›</button></div></div>
-    <div class="legend"><span><i class="lg field"></i>필드</span>${comps.some(c=>c.ica==='yes')?'<span><i class="lg field ica"></i>필드(인차지)</span>':''}<span><i class="lg lobby"></i>Audit Lobby</span><span><i class="lg agm"></i>주총</span></div>
+    <div class="legend"><span><i class="lg field"></i>필드</span>${comps.some(c=>c.ica==='yes')?'<span><i class="lg field ica"></i>필드(인차지)</span>':''}${invY().items.some(it=>(it.dates||[]).length)?'<span><i class="lg inv"></i>재고실사</span>':''}<span><i class="lg lobby"></i>Audit Lobby</span><span><i class="lg agm"></i>주총</span></div>
     <div class="cgrid"></div><p class="fine">날짜를 누르면 그날 일정을 보고 필드를 추가할 수 있어요. 여러 날은 시작일을 꾹 누른 채 끝나는 날까지 끌어 주세요.</p>`;
   box.querySelector('.cprev').onclick=()=>{calView.m--;if(calView.m<1){calView.m=12;calView.y--}renderMain()};
   box.querySelector('.cnext').onclick=()=>{calView.m++;if(calView.m>12){calView.m=1;calView.y++}renderMain()};
@@ -966,7 +978,8 @@ function renderCalendar(m,comps){
   if(!ks.length)ag.innerHTML+=`<p class="fine">이 달에는 일정이 없어요.</p>`;
   const ym=`${y}-${pad(mo)}-`, rangeAt={};
   comps.forEach(c=>fieldRanges(c.field).forEach(r=>{const days=(c.field||[]).filter(k=>k>=r[0]&&k<=r[1]&&k.startsWith(ym));if(days.length)rangeAt[c.id+'|'+days[0]]={r,n:(c.field||[]).filter(k=>k>=r[0]&&k<=r[1]).length};}));
-  const agEv=k=>ev[k].filter(e=>e.t!=='field'||rangeAt[e.c.id+'|'+k]);
+  invY().items.forEach(it=>dayRanges(it.dates).forEach(r=>{const days=(it.dates||[]).filter(k=>k>=r[0]&&k<=r[1]&&k.startsWith(ym));if(days.length)rangeAt[it.id+'|'+days[0]]={r,n:r[2]}}));
+  const agEv=k=>ev[k].filter(e=>(e.t!=='field'&&e.t!=='inv')||rangeAt[e.c.id+'|'+k]);
   ks.filter(k=>agEv(k).length).forEach(k=>{
     const row=document.createElement('div'); row.className='ag-row';
     const d=parseKey(k);
@@ -974,9 +987,9 @@ function renderCalendar(m,comps){
     const it=row.querySelector('.ag-items');
     agEv(k).forEach(e=>{
       const s=document.createElement('button'); s.type='button'; s.className='ag-it '+e.t;
-      const ri=e.t==='field'?rangeAt[e.c.id+'|'+k]:null;
-      s.innerHTML=`<i class="lg ${e.t}${e.ica?' ica':''}"></i>${esc(e.c.name)} <em>${e.t==='field'?(e.ica?'필드(인차지)':'필드')+(ri&&ri.n>1?' '+rangeTxt(ri.r)+' ('+ri.n+'일)':''):e.t==='agm'?'주주총회':'Audit Lobby · '+(e.c.signoff?'Sign-off 완료':'Sign-off 전')}</em>`;
-      s.onclick=()=>openDay(k,comps);
+      const ri=e.t==='field'||e.t==='inv'?rangeAt[e.c.id+'|'+k]:null;
+      s.innerHTML=`<i class="lg ${e.t}${e.ica?' ica':''}"></i>${esc(e.c.name)} <em>${e.t==='inv'?'재고실사'+(ri&&ri.n>1?' '+rangeTxt(ri.r)+' ('+ri.n+'일)':'')+(e.c.place?' · '+esc(e.c.place):''):e.t==='field'?(e.ica?'필드(인차지)':'필드')+(ri&&ri.n>1?' '+rangeTxt(ri.r)+' ('+ri.n+'일)':''):e.t==='agm'?'주주총회':'Audit Lobby · '+(e.c.signoff?'Sign-off 완료':'Sign-off 전')}</em>`;
+      s.onclick=()=>e.t==='inv'?openInvEdit(e.c.id):openDay(k,comps);
       it.appendChild(s);
     });
     ag.appendChild(row);
@@ -1041,7 +1054,7 @@ function openDay(k,comps){
       const l=document.createElement('div'); l.className='day-ev';
       ev.forEach(e=>{
         const r=document.createElement('div'); r.className='de-row';
-        r.innerHTML=`<i class="lg ${e.t}"></i><b>${esc(e.c.name)}</b><span>${e.t==='field'?'필드':e.t==='agm'?'주주총회':'Audit Lobby · '+(e.c.signoff?'Sign-off 완료':'Sign-off 전')}</span>`;
+        r.innerHTML=`<i class="lg ${e.t}${e.ica?' ica':''}"></i><b>${esc(e.c.name)}</b><span>${e.t==='inv'?'재고실사'+(e.c.place?' · '+esc(e.c.place):''):e.t==='field'?(e.ica?'필드(인차지)':'필드'):e.t==='agm'?'주주총회':'Audit Lobby · '+(e.c.signoff?'Sign-off 완료':'Sign-off 전')}</span>`;
         if(e.t==='lobby'){const b=document.createElement('button');b.type='button';b.className='signbtn';b.setAttribute('aria-pressed',!!e.c.signoff);b.textContent=e.c.signoff?'Sign-off ✓':'Sign-off';b.onclick=()=>{closeSheet();setField(e.c,'signoff',!e.c.signoff,e.c.signoff?`${e.c.name} Sign-off 취소`:`${e.c.name} Sign-off 완료`)};r.appendChild(b)}
         l.appendChild(r);
       });
@@ -1341,6 +1354,100 @@ function confY(y){y=y||cur;return confs.years[y]||(confs.years[y]={items:[],rece
 const confHas=y=>{const c=confs.years[y];return !!c&&(c.items.length>0||c.receipts.length>0)};
 function confWrite(){try{localStorage.setItem(CONF_LS,JSON.stringify(confs))}catch(e){toast('저장 공간이 부족해요',false)}}
 function confCommit(y,msg){confWrite();syncLocalChanged('conf_'+(y||cur));renderMain();if(msg)toast(msg,false)}
+
+/* ---------- 재고실사: 연도마다 {items:[{id,name,dates,place,note}]} ----------
+   회사 목록과 따로 이 기기에 저장하고, 로그인돼 있으면 inv_연도 문서로 동기화해요.
+   (예전 버전 앱은 inv_ 문서를 모르는 채로 건드리지 않아서, 업데이트 전 폰에서도 지워지지 않아요) */
+const INV_LS='audit-inv-v1';
+let invs={years:{}};
+try{const r=localStorage.getItem(INV_LS);if(r){const o=JSON.parse(r);if(o&&o.years)invs=o}}catch(e){}
+function normInv(o){return {items:(Array.isArray(o&&o.items)?o.items:[]).map(x=>Object.assign({id:uid(),name:'',dates:[],place:'',note:''},x))}}
+function invY(y){y=y||cur;if(!y)return {items:[]};return invs.years[y]||(invs.years[y]={items:[]})}
+const invHas=y=>{const v=invs.years[y];return !!v&&v.items.length>0};
+function invWrite(){try{localStorage.setItem(INV_LS,JSON.stringify(invs))}catch(e){toast('저장 공간이 부족해요',false)}}
+function invCommit(msg){invWrite();syncLocalChanged('inv_'+cur);renderMain();if(msg)toast(msg,false)}
+/* 실사는 주말·공휴일에도 하니까 달력 날짜를 그대로 이어서 묶어요 */
+function dayRanges(days){
+  const ds=[...new Set(days||[])].sort(), out=[];
+  ds.forEach(k=>{const last=out[out.length-1];if(last&&addDays(last[1],1)===k){last[1]=k;last[2]++}else out.push([k,k,1])});
+  return out;
+}
+function allDaysBetween(a,b){if(a>b)[a,b]=[b,a];const out=[];for(let k=a;k<=b;k=addDays(k,1))out.push(k);return out}
+function renderInv(m){
+  const items=invY().items.slice().sort((a,b)=>{const x=(a.dates||[]).slice().sort()[0]||'9999',y=(b.dates||[]).slice().sort()[0]||'9999';return x<y?-1:x>y?1:collator.compare(a.name,b.name)});
+  const meta=document.createElement('div'); meta.className='meta-row';
+  const planned=items.filter(it=>(it.dates||[]).length).length;
+  meta.innerHTML=`<span>재고실사 <b>${items.length}</b>곳${items.length&&planned<items.length?` · 일정 미정 <b>${items.length-planned}</b>곳`:''}</span>`;
+  const add=document.createElement('button'); add.type='button'; add.className='addbtn'; add.textContent='+ 회사 추가'; add.onclick=()=>openInvEdit(null);
+  const btns=document.createElement('span'); btns.className='meta-btns'; btns.append(add); meta.appendChild(btns); m.appendChild(meta);
+  const listEl=document.createElement('div'); listEl.className='list';
+  if(!items.length){const e=document.createElement('div');e.className='empty';e.innerHTML='<p>아직 재고실사 회사가 없어요. \'+ 회사 추가\'로 회사와 실사 일정을 넣으면 달력에도 같이 표시돼요.</p>';listEl.appendChild(e)}
+  items.forEach(it=>{
+    const rs=dayRanges(it.dates), next=(it.dates||[]).filter(k=>k>=todayKey).sort()[0];
+    const dd=next?dday(next):null;
+    const b=document.createElement('button'); b.type='button'; b.className='inv-card';
+    b.innerHTML=`<span class="ih"><span>${esc(it.name)}</span><span class="mono${dd&&dd.diff<=7?' soon':''}">${rs.length?(dd?dd.txt:'완료'):'일정 미정'}</span></span>
+      ${rs.length?`<span class="il mono"><b>실사</b> ${rs.map(r=>rangeTxt(r)+(r[2]>1?` (${r[2]}일)`:'')).join(', ')}</span>`:''}
+      ${it.place?`<span class="il">장소 · ${esc(it.place)}</span>`:''}
+      ${it.note?`<span class="il">${esc(it.note)}</span>`:''}`;
+    b.onclick=()=>openInvEdit(it.id);
+    listEl.appendChild(b);
+  });
+  m.appendChild(listEl);
+}
+function openInvEdit(id){
+  const src=id?invY().items.find(x=>x.id===id):null; if(id&&!src)return;
+  const isNew=!src; const c=isNew?{id:uid(),name:'',dates:[],place:'',note:''}:JSON.parse(JSON.stringify(src));
+  c.dates=(c.dates||[]).slice();
+  const names=[...new Set(list().map(x=>x.name).filter(Boolean))].sort((a,b)=>collator.compare(a,b));
+  openSheet(sh=>{
+    sh.innerHTML=`
+      <div><h4>${isNew?'재고실사 회사 추가':esc(c.name)}</h4><div class="sub">FY${cur} · 재고실사</div></div>
+      <div class="form">
+        <label class="f">회사명<input id="iName" list="invCoList" value="${esc(c.name)}" autocomplete="off" placeholder="목록에 있는 회사는 골라도 돼요"></label>
+        <datalist id="invCoList">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+        <div class="f">실사 일정<div class="fld-list" id="iFld"></div><div class="fld-add"><input type="date" id="iF1" aria-label="실사 시작일"><span>~</span><input type="date" id="iF2" aria-label="실사 종료일"><button type="button" class="btn" id="iFAdd">추가</button></div><span class="fine">주말·공휴일도 그대로 넣어요. 끝나는 날을 비우면 하루만 들어가요.</span></div>
+        <label class="f">장소<input id="iPlace" value="${esc(c.place)}" autocomplete="off" placeholder="예: 이천 창고"></label>
+        <label class="f">비고<textarea id="iNote">${esc(c.note)}</textarea></label>
+      </div>
+      <div class="sheet-foot"><button type="button" class="btn" id="iCancel">취소</button><button type="button" class="btn primary" id="iSave">${isNew?'추가':'저장'}</button></div>
+      ${isNew?'':'<button type="button" class="btn danger" id="iDel">재고실사에서 삭제</button><div class="confirm" id="iDelBox" hidden>'+esc(c.name)+'을(를) 재고실사 목록에서 지울까요? 회사 목록과 다른 기록은 그대로예요.<button type="button" class="btn danger" id="iDelYes">삭제</button><button type="button" class="btn" id="iDelNo">취소</button></div>'}`;
+    const draw=()=>{
+      const box=sh.querySelector('#iFld'); box.innerHTML='';
+      const rs=dayRanges(c.dates);
+      if(!rs.length){box.innerHTML='<span class="fine">아직 없어요</span>';return}
+      rs.forEach(r=>{
+        const ch=document.createElement('span'); ch.className='fld-chip inv mono'; ch.innerHTML=`${rangeTxt(r)} (${r[2]}일)`;
+        const x=document.createElement('button'); x.type='button'; x.textContent='×'; x.setAttribute('aria-label',rangeTxt(r)+' 지우기');
+        x.onclick=()=>{c.dates=c.dates.filter(k=>k<r[0]||k>r[1]);draw()};
+        ch.appendChild(x); box.appendChild(ch);
+      });
+    };
+    draw();
+    const addRange=()=>{
+      const a=sh.querySelector('#iF1').value, b=sh.querySelector('#iF2').value||a; if(!a)return false;
+      c.dates=[...new Set([...c.dates,...allDaysBetween(a,b)])].sort();
+      sh.querySelector('#iF1').value=''; sh.querySelector('#iF2').value=''; draw(); return true;
+    };
+    sh.querySelector('#iFAdd').onclick=()=>{if(!addRange())sh.querySelector('#iF1').focus()};
+    sh.querySelector('#iCancel').onclick=closeSheet;
+    sh.querySelector('#iSave').onclick=()=>{
+      const name=sh.querySelector('#iName').value.trim();
+      if(!name){sh.querySelector('#iName').focus();sh.querySelector('#iName').placeholder='회사명을 입력하세요';return}
+      addRange();   // 날짜만 고르고 '추가'를 안 눌렀어도 넣어요
+      const arr=invY().items;
+      if(isNew&&arr.some(x=>keyName(x.name)===keyName(name))){toast(`${name}은(는) 이미 재고실사 목록에 있어요`,false);return}
+      Object.assign(c,{name,place:sh.querySelector('#iPlace').value.trim(),note:sh.querySelector('#iNote').value.trim()});
+      if(isNew)arr.push(c); else Object.assign(src,c);
+      closeSheet(); invCommit(isNew?`재고실사에 ${name} 추가했어요`:`${name} 재고실사 저장했어요`);
+    };
+    if(!isNew){
+      sh.querySelector('#iDel').onclick=()=>{sh.querySelector('#iDelBox').hidden=false};
+      sh.querySelector('#iDelNo').onclick=()=>{sh.querySelector('#iDelBox').hidden=true};
+      sh.querySelector('#iDelYes').onclick=()=>{const y=invY();y.items=y.items.filter(x=>x.id!==c.id);closeSheet();invCommit(`${c.name} 재고실사에서 지웠어요`)};
+    }
+  });
+}
 const coKey=s=>String(s||'').replace(/\(주\)|㈜|주식회사|\(유\)|유한회사|[\s()·.,\-]/g,'').toLowerCase();
 const regFmt=r=>{const d=String(r||'').replace(/\D/g,'');return d.length===13?`${d.slice(0,5)}-${d.slice(5,9)}-${d.slice(9)}`:d};
 const regDigits=r=>String(r||'').replace(/\D/g,'');

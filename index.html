@@ -113,6 +113,7 @@ h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
 .inv-card .ih .mono.soon{color:var(--inv)}
 .inv-card .il{font-size:13px;color:var(--muted)}
 .inv-card .il b{color:var(--inv);font-weight:600}
+.inv-card .il.memo{white-space:pre-line;overflow-wrap:anywhere}
 .fld-chip.inv{border-color:var(--inv)}
 .cday .more{font-size:10px;color:var(--muted);padding-left:3px}
 .agenda{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column}
@@ -1389,7 +1390,7 @@ function renderInv(m){
     b.innerHTML=`<span class="ih"><span>${esc(it.name)}</span><span class="mono${dd&&dd.diff<=7?' soon':''}">${rs.length?(dd?dd.txt:'완료'):'일정 미정'}</span></span>
       ${rs.length?`<span class="il mono"><b>실사</b> ${rs.map(r=>rangeTxt(r)+(r[2]>1?` (${r[2]}일)`:'')).join(', ')}</span>`:''}
       ${it.place?`<span class="il">장소 · ${esc(it.place)}</span>`:''}
-      ${it.note?`<span class="il">${esc(it.note)}</span>`:''}`;
+      ${it.note?`<span class="il memo">${esc(it.note)}</span>`:''}`;
     b.onclick=()=>openInvEdit(it.id);
     listEl.appendChild(b);
   });
